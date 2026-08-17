@@ -5,10 +5,10 @@ from uuid import UUID
 from app.core.database import get_db
 from app.repositories.base import SessionRepository, ResumeRepository
 from app.services.resume_parser import ResumeParserService, ScannedPDFError
-from app.schemas.resume import ResumeResponse
+from app.services.ai import AIService, AIExtractionError
+from app.schemas.resume import ResumeResponse, ResumeParsedData
 
 router = APIRouter(prefix="/resumes", tags=["resumes"])
-
 
 @router.post("", response_model=ResumeResponse, status_code=201)
 async def upload_resume(
@@ -32,8 +32,6 @@ async def upload_resume(
             },
         )
 
-    # Don't rely only on the MIME type sent by the client.
-    # Verify the filename and the actual PDF file signature.
     filename = (file.filename or "").lower()
 
     if not filename.endswith(".pdf") or not file_bytes.startswith(b"%PDF-"):
@@ -45,7 +43,7 @@ async def upload_resume(
             },
         )
 
-    # 2. Extract document text
+    # 2. Extract document text via pure Python heuristics
     parser_service = ResumeParserService()
 
     try:
@@ -69,9 +67,24 @@ async def upload_resume(
             },
         )
 
-    # 3. Heuristic chunking (pre-AI segmentation)
-    # This prepares the data for Phase 3 where we hand it to Gemini.
     sectioned_text = parser_service.heuristically_chunk_sections(raw_text)
+
+    # 3. AI Service structured extraction via Gemini API
+    ai_service = AIService()
+    try:
+        # We pass the heuristically chunked text as a string to the AI model
+        text_for_ai = "\n\n".join([f"---{k.upper()}---\n{v}" for k, v in sectioned_text.items()])
+
+        parsed_resume_data: ResumeParsedData = await ai_service.extract_structured(
+            text=text_for_ai,
+            schema=ResumeParsedData,
+            extraction_type="Resume"
+        )
+    except AIExtractionError as e:
+         raise HTTPException(status_code=502, detail={
+            "code": "EXTRACTION_FAILED",
+            "message": str(e)
+        })
 
     # 4. Persistence
     content_hash = parser_service.get_content_hash(raw_text)
@@ -85,13 +98,13 @@ async def upload_resume(
 
     resume_repo = ResumeRepository(db)
 
-    # Temporary: parsed_data will be built out fully in Phase 3.
+    # Update logic to save the fully structured Pydantic dump
     resume = resume_repo.create(
         session_id=current_session.id,
         filename=file.filename,
         raw_text=raw_text,
         content_hash=content_hash,
-        parsed_data=None,
+        parsed_data=parsed_resume_data.model_dump(),
     )
 
     return resume

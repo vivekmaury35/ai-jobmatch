@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from uuid import UUID, uuid4
 
 from app.api.resumes import router as resumes_router
+from app.api.jobs import router as jobs_router
 
 app = FastAPI(
     title="AI JobMatch API",
@@ -17,7 +18,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 @app.middleware("http")
 async def session_middleware(request: Request, call_next):
@@ -51,9 +51,8 @@ async def session_middleware(request: Request, call_next):
 
     return await call_next(request)
 
-
 app.include_router(resumes_router, prefix="/api")
-
+app.include_router(jobs_router, prefix="/api")
 
 @app.get("/api/health")
 async def health_check():
