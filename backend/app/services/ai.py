@@ -187,11 +187,104 @@ Do not add explanations.
     async def generate_explanation(
         self,
         context: dict
-    ) -> str:
+    ) -> dict:
         """
-        Stub for later explanation-generation phase.
+        One Gemini call that produces a plain-language explanation of the
+        match result plus 2-4 actionable resume improvement suggestions.
+
+        The model is explicitly restricted to:
+        - Reasoning ONLY from the scores and skill lists provided.
+        - NOT altering, rounding, or fabricating any numeric score.
+        - NOT inventing resume achievements or projects the candidate did
+          not list.
         """
 
-        raise NotImplementedError(
-            "Explanation generation is not implemented yet."
-        )
+        overall = context["overall_score"]
+        skill = context["skill_score"]
+        semantic = context["semantic_score"]
+        experience = context["experience_score"]
+        education = context["education_score"]
+        projects = context["project_evidence_score"]
+        matched = context.get("matched_skills", [])
+        missing = context.get("missing_skills", [])
+        related = context.get("related_skills", [])
+
+        prompt = f"""You are a career coach writing feedback for a candidate.
+
+You have been given the OUTPUT of an automated resume-job matching system.
+Your job is to:
+1. Write a 3-5 sentence plain-language explanation of how the candidate
+   performed against the job requirements.
+2. Write 2-4 specific, actionable improvement suggestions.
+
+STRICT RULES — violating any of these is a critical error:
+- Do NOT change, round, or restate any numeric score differently from
+  what is given below.
+- Do NOT invent, imply, or assume any achievement, project, technology,
+  or experience that is not explicitly listed in the matched/missing/related
+  skill data below.
+- Ground every suggestion in the actual missing or related skills listed.
+- Write for the candidate (second person: "you", "your").
+
+COMPUTED SCORES (treat as ground truth — do not alter):
+  Overall match score : {overall}%
+  Skill match score   : {skill}%
+  Semantic similarity : {semantic}%
+  Experience score    : {experience}%
+  Education score     : {education}%
+  Project evidence    : {projects}%
+
+MATCHED SKILLS (candidate already has these):
+{json.dumps(matched, indent=2)}
+
+MISSING SKILLS (candidate does not have these):
+{json.dumps(missing, indent=2)}
+
+SEMANTICALLY RELATED SKILLS (candidate has something close):
+{json.dumps(related, indent=2)}
+
+Return ONLY valid JSON. Do not use markdown fences. Follow this exact schema:
+{{
+  "explanation": "<3-5 sentence explanation string>",
+  "recommendations": [
+    {{"type": "add_skill", "content": "<specific actionable suggestion>", "priority": 1}},
+    {{"type": "add_skill", "content": "<specific actionable suggestion>", "priority": 2}}
+  ]
+}}
+The "type" field must be one of: "add_skill", "highlight_skill", "add_project", "add_certification".
+Include 2-4 recommendation objects. Priority 1 is most important.
+"""
+
+        try:
+            response = await self.client.aio.models.generate_content(
+                model=self.model,
+                contents=prompt,
+            )
+
+            raw = response.text.strip()
+            if raw.startswith("```json"):
+                raw = raw[7:]
+            elif raw.startswith("```"):
+                raw = raw[3:]
+            if raw.endswith("```"):
+                raw = raw[:-3]
+            raw = raw.strip()
+
+            parsed = json.loads(raw)
+
+            # Validate minimum required fields
+            explanation = str(parsed.get("explanation", "")).strip()
+            recommendations = parsed.get("recommendations", [])
+            if not isinstance(recommendations, list):
+                recommendations = []
+
+            return {
+                "explanation": explanation,
+                "recommendations": recommendations[:4],  # cap at 4 per FR-20
+            }
+
+        except Exception as e:
+            logger.exception("generate_explanation failed: %s", e)
+            raise AIExtractionError(
+                "Failed to generate explanation."
+            ) from e

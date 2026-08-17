@@ -218,8 +218,13 @@ def test_content_hash_caching_behavior(client, db_session):
         assert data5["cached"] is False, "A changed job content_hash must force recomputation."
 
     finally:
-        # Explicit test cleanup - deleting explicitly from physical db using the unique run tracking constraint
-        # To avoid cascading FK violations from cleanup, delete analysis rows then base rows
+        # Explicit test cleanup - delete in FK order: recommendations -> analyses -> jobs/resumes -> session
+        from app.models.analysis import Recommendation
+        analysis_ids = [
+            row.id for row in db_session.query(Analysis.id).filter(Analysis.session_id == session_id)
+        ]
+        if analysis_ids:
+            db_session.query(Recommendation).filter(Recommendation.analysis_id.in_(analysis_ids)).delete(synchronize_session=False)
         db_session.query(Analysis).filter(Analysis.session_id == session_id).delete()
         db_session.query(Job).filter(Job.session_id == session_id).delete()
         db_session.query(Resume).filter(Resume.session_id == session_id).delete()

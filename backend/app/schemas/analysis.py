@@ -1,7 +1,14 @@
 from typing import Any, Dict, List, Optional
 from uuid import UUID
+from datetime import datetime
 
 from pydantic import BaseModel
+
+
+class RecommendationSchema(BaseModel):
+    type: str
+    content: str
+    priority: int
 
 
 class AnalyzeRequest(BaseModel):
@@ -27,4 +34,7 @@ class AnalyzeResponse(BaseModel):
     related_skills: List[Dict[str, Any]]
 
     explanation: Optional[str] = None
+    recommendations: List[RecommendationSchema] = []
+
     cached: bool = False
+    created_at: Optional[datetime] = None
