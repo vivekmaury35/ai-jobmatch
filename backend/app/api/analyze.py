@@ -12,13 +12,14 @@ from app.schemas.analysis import (
     AnalyzeResponse,
 )
 from app.services.matching import MatchingEngine
-
+from app.models.analysis import Analysis
+from app.models.resume import Resume
+from app.models.job import Job
 
 router = APIRouter(
     prefix="/analyze",
     tags=["analysis"],
 )
-
 
 @router.post(
     "",
@@ -32,17 +33,9 @@ async def analyze_resume_against_job(
     Compare one resume against one job description.
     """
 
-    # ------------------------------------------------------
-    # 1. Repositories
-    # ------------------------------------------------------
-
     resume_repo = ResumeRepository(db)
     job_repo = JobRepository(db)
     analysis_repo = AnalysisRepository(db)
-
-    # ------------------------------------------------------
-    # 2. Find Resume
-    # ------------------------------------------------------
 
     resume = resume_repo.get_by_id(payload.resume_id)
 
@@ -54,10 +47,6 @@ async def analyze_resume_against_job(
                 "message": "Resume not found.",
             },
         )
-
-    # ------------------------------------------------------
-    # 3. Find Job
-    # ------------------------------------------------------
 
     job = job_repo.get_by_id(payload.job_id)
 
@@ -71,12 +60,24 @@ async def analyze_resume_against_job(
         )
 
     # ------------------------------------------------------
-    # 4. Check cached analysis
+    # 4. Check cached analysis based on content_hash logic
+    #
+    # We join Analysis to Resume and Job to explicitly check if ANY
+    # prior analysis was done targeting the *exact same* raw_text
+    # (represented by content_hash). If so, we reuse the result
+    # instead of re-computing the deterministic arrays.
     # ------------------------------------------------------
 
-    existing_analysis = analysis_repo.get_by_resume_and_job(
-        resume_id=resume.id,
-        job_id=job.id,
+    existing_analysis = (
+        db.query(Analysis)
+        .join(Resume, Analysis.resume_id == Resume.id)
+        .join(Job, Analysis.job_id == Job.id)
+        .filter(
+            Resume.content_hash == resume.content_hash,
+            Job.content_hash == job.content_hash
+        )
+        .order_by(Analysis.created_at.desc())
+        .first()
     )
 
     if existing_analysis:
@@ -94,8 +95,9 @@ async def analyze_resume_against_job(
             ),
             matched_skills=existing_analysis.matched_skills or [],
             missing_skills=existing_analysis.missing_skills or [],
-            related_skills=[],
+            related_skills=existing_analysis.related_skills or [],
             explanation=existing_analysis.explanation,
+            cached=True
         )
 
     # ------------------------------------------------------
@@ -122,9 +124,6 @@ async def analyze_resume_against_job(
             },
         ) from e
 
-    # ------------------------------------------------------
-    # 6. Prepare analysis data
-    # ------------------------------------------------------
 
     analysis_data = {
         "overall_score": result["overall_score"],
@@ -137,12 +136,9 @@ async def analyze_resume_against_job(
         ),
         "matched_skills": result["matched_skills"],
         "missing_skills": result["missing_skills"],
+        "related_skills": result["related_skills"],
         "explanation": None,
     }
-
-    # ------------------------------------------------------
-    # 7. Save Analysis
-    # ------------------------------------------------------
 
     analysis = analysis_repo.create(
         session_id=resume.session_id,
@@ -150,10 +146,6 @@ async def analyze_resume_against_job(
         job_id=job.id,
         analysis_data=analysis_data,
     )
-
-    # ------------------------------------------------------
-    # 8. Return Response
-    # ------------------------------------------------------
 
     return AnalyzeResponse(
         id=analysis.id,
@@ -171,4 +163,5 @@ async def analyze_resume_against_job(
         missing_skills=analysis.missing_skills or [],
         related_skills=result.get("related_skills", []),
         explanation=analysis.explanation,
+        cached=False
     )

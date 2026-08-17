@@ -27,3 +27,4 @@ class AnalyzeResponse(BaseModel):
     related_skills: List[Dict[str, Any]]
 
     explanation: Optional[str] = None
+    cached: bool = False

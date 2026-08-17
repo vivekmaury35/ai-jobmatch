@@ -21,6 +21,7 @@ class Analysis(Base):
     project_evidence_score = Column(Float, nullable=True)
     matched_skills = Column(JSONB, nullable=True)
     missing_skills = Column(JSONB, nullable=True)
+    related_skills = Column(JSONB, nullable=True) # Adding this so it can be correctly retrieved from cache
     explanation = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

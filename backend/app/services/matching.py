@@ -46,9 +46,10 @@ class MatchingEngine:
         earned_score = 0.0
 
         # We must dynamically batch embed missing job strings and unused resume strings for semantic similarity check
+        # Guard: skill_id=None must NOT be considered a taxonomy match (None == None is True in Python)
         unmatched_resume_raws = []
         for rs in resume_skills:
-             if js_match := next((js for js in job.skills if js.skill_id == rs.skill_id), None):
+             if rs.skill_id is not None and any(js.skill_id == rs.skill_id for js in job.skills):
                   pass # Will be tracked down below
              else:
                   unmatched_resume_raws.append(rs.raw_text)
