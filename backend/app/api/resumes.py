@@ -6,6 +6,7 @@ from app.core.database import get_db
 from app.repositories.base import SessionRepository, ResumeRepository
 from app.services.resume_parser import ResumeParserService, ScannedPDFError
 from app.services.ai import AIService, AIExtractionError
+from app.services.skill_normalizer import SkillNormalizerService
 from app.schemas.resume import ResumeResponse, ResumeParsedData
 
 router = APIRouter(prefix="/resumes", tags=["resumes"])
@@ -105,6 +106,13 @@ async def upload_resume(
         raw_text=raw_text,
         content_hash=content_hash,
         parsed_data=parsed_resume_data.model_dump(),
+    )
+
+    # FR-12: Normalize and populate resume_skills
+    normalizer = SkillNormalizerService(db)
+    normalizer.populate_resume_skills(
+        resume_id=resume.id,
+        raw_skills=parsed_resume_data.skills
     )
 
     return resume

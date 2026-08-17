@@ -6,6 +6,7 @@ from app.core.database import get_db
 from app.repositories.base import SessionRepository, JobRepository
 from app.schemas.job import JobCreateRequest, JobResponse, JobParsedData
 from app.services.ai import AIService, AIExtractionError
+from app.services.skill_normalizer import SkillNormalizerService
 import hashlib
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -56,6 +57,14 @@ async def analyze_job(request: Request, job_input: JobCreateRequest, db: Session
         raw_text=raw_text,
         content_hash=content_hash,
         parsed_data=parsed_job_data.model_dump()
+    )
+
+    # FR-12: Normalize and populate job_skills
+    normalizer = SkillNormalizerService(db)
+    normalizer.populate_job_skills(
+        job_id=job.id,
+        required=parsed_job_data.required_skills,
+        preferred=parsed_job_data.preferred_skills
     )
 
     return job
