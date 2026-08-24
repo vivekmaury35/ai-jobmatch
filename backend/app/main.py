@@ -1,5 +1,4 @@
 from fastapi import FastAPI, Request, Response
-from fastapi.middleware.cors import CORSMiddleware
 from uuid import UUID, uuid4
 
 from app.api.resumes import router as resumes_router
@@ -15,17 +14,38 @@ app = FastAPI(
 
 
 # ==========================================================
-# CORS MIDDLEWARE (Must be added last so it wraps all requests)
+# DYNAMIC CORS MIDDLEWARE
 # ==========================================================
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["X-Session-ID"],
-)
+@app.middleware("http")
+async def dynamic_cors_middleware(request: Request, call_next):
+    origin = request.headers.get("origin") or "*"
+
+    if request.method == "OPTIONS":
+        return Response(
+            status_code=200,
+            headers={
+                "Access-Control-Allow-Origin": origin,
+                "Access-Control-Allow-Credentials": "true",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Session-ID, X-Requested-With, Accept",
+                "Access-Control-Max-Age": "86400",
+            }
+        )
+
+    response = await call_next(request)
+
+    if origin != "*":
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+    else:
+        response.headers["Access-Control-Allow-Origin"] = "*"
+
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-Session-ID, X-Requested-With, Accept"
+    response.headers["Access-Control-Expose-Headers"] = "X-Session-ID"
+
+    return response
 
 
 # ==========================================================
@@ -37,16 +57,6 @@ async def session_middleware(
     request: Request,
     call_next,
 ):
-    if request.method == "OPTIONS":
-        return Response(
-            status_code=200,
-            headers={
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "*",
-                "Access-Control-Allow-Headers": "*",
-            }
-        )
-
     session_id = request.cookies.get("session_id") or request.headers.get("x-session-id")
 
     # No session ID -> create one
