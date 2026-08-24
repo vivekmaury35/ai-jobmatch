@@ -13,7 +13,7 @@ export default function Results({ params }: { params: Promise<{ id: string }> })
 
   useEffect(() => {
     const apiUrl = getApiUrl();
-    fetch(`${apiUrl}/analyze/${id}`, { credentials: 'include' })
+    fetch(`${apiUrl}/analyze/${id}`)
 
       .then(res => {
          if (!res.ok) throw new Error("Load failed");

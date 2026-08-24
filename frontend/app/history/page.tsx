@@ -15,7 +15,6 @@ export default function History() {
     const storedSession = localStorage.getItem('session_id') || "";
 
     fetch(`${apiUrl}/analyze`, {
-        credentials: 'include',
         headers: { 'X-Session-ID': storedSession }
     })
       .then(res => { if (!res.ok) throw new Error("Failed to load history"); return res.json(); })
@@ -26,9 +25,10 @@ export default function History() {
   const deleteAnalysis = async (e: React.MouseEvent, id: string) => {
     e.preventDefault();
     const apiUrl = getApiUrl();
-    await fetch(`${apiUrl}/analyze/${id}`, { method: 'DELETE', credentials: 'include' });
+    await fetch(`${apiUrl}/analyze/${id}`, { method: 'DELETE' });
     setAnalyses(prev => prev ? prev.filter(a => a.id !== id) : null);
   };
+
 
 
   if (error) return <main className="p-8 text-red-500 font-semibold">{error}</main>;

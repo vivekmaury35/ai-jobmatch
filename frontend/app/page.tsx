@@ -62,7 +62,6 @@ export default function Home() {
       const resumeRes = await fetch(`${apiUrl}/resumes`, {
         method: 'POST',
         body: formData,
-        credentials: 'include',
         headers: {
             'X-Session-ID': storedSession
         }
@@ -86,8 +85,7 @@ export default function Home() {
             'Content-Type': 'application/json',
             'X-Session-ID': localStorage.getItem('session_id') || ""
         },
-        body: JSON.stringify({ raw_text: jd }),
-        credentials: 'include'
+        body: JSON.stringify({ raw_text: jd })
       });
       if (!jobRes.ok) throw new Error('JD submission failed.');
       const jobSessionHeader = jobRes.headers.get("X-Session-ID");
@@ -101,9 +99,9 @@ export default function Home() {
             'Content-Type': 'application/json',
             'X-Session-ID': localStorage.getItem('session_id') || ""
         },
-        body: JSON.stringify({ resume_id: resume.id, job_id: job.id }),
-        credentials: 'include'
+        body: JSON.stringify({ resume_id: resume.id, job_id: job.id })
       });
+
       if (!analyzeRes.ok) throw new Error('Analysis failed.');
       const analyzeSessionHeader = analyzeRes.headers.get("X-Session-ID");
       if (analyzeSessionHeader) localStorage.setItem('session_id', analyzeSessionHeader);
