@@ -1,3 +1,4 @@
+import os
 import json
 import logging
 from typing import Type, TypeVar
@@ -6,6 +7,11 @@ from openai import AsyncOpenAI
 from google import genai
 from google.genai.errors import APIError
 from pydantic import BaseModel, ValidationError
+
+from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
 # Global embedding model - initialized once at module load to avoid reloading on every request
 _embedding_model = None
 
