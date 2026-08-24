@@ -27,6 +27,9 @@ async def session_middleware(
         return await call_next(request)
 
     session_id = request.cookies.get("session_id")
+    is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
+    samesite_val = "none" if is_https else "lax"
+    secure_val = is_https
 
     # No session cookie -> create one
     if not session_id:
@@ -38,8 +41,8 @@ async def session_middleware(
             key="session_id",
             value=session_id,
             httponly=True,
-            samesite="lax",
-            secure=False,
+            samesite=samesite_val,
+            secure=secure_val,
         )
 
         return response
@@ -57,8 +60,8 @@ async def session_middleware(
             key="session_id",
             value=session_id,
             httponly=True,
-            samesite="lax",
-            secure=False,
+            samesite=samesite_val,
+            secure=secure_val,
         )
 
         return response
@@ -79,16 +82,17 @@ app.add_middleware(
         "http://127.0.0.1:3001",
         "http://localhost:8000",
         "http://127.0.0.1:8000",
+        "https://ai-jobmatch-zeta.vercel.app",
+        "https://aijobmatch.vercel.app",
+        "https://ai-jobmatch.vercel.app",
     ],
-    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_origin_regex=r"https://.*\.vercel\.app|http://(localhost|127\.0\.0\.1)(:\d+)?",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    # Custom response headers are hidden from JS by default under CORS;
-    # expose X-Session-ID so the frontend can persist the session across
-    # environments where the session cookie isn't reliably round-tripped.
     expose_headers=["X-Session-ID"],
 )
+
 
 
 # ==========================================================
