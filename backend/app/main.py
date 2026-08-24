@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse
 from uuid import UUID, uuid4
 
 from app.api.resumes import router as resumes_router
@@ -14,6 +15,30 @@ app = FastAPI(
 
 
 # ==========================================================
+# GLOBAL EXCEPTION HANDLER (WITH CORS HEADERS FOR 500s)
+# ==========================================================
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    error_msg = f"{type(exc).__name__}: {str(exc)}"
+    print(f"GLOBAL UNHANDLED EXCEPTION: {error_msg}\n{traceback.format_exc()}")
+
+    origin = request.headers.get("origin") or "*"
+    headers = {
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Allow-Methods": "*",
+        "Access-Control-Allow-Headers": "*",
+    }
+    return JSONResponse(
+        status_code=500,
+        content={"detail": {"code": "INTERNAL_SERVER_ERROR", "message": error_msg}},
+        headers=headers
+    )
+
+
+# ==========================================================
 # STARTUP EVENT: AUTO-CREATE DATABASE TABLES
 # ==========================================================
 
@@ -26,7 +51,6 @@ def on_startup():
     except Exception as e:
         import logging
         logging.getLogger("uvicorn").error(f"Startup DB table creation error: {e}")
-
 
 
 # ==========================================================

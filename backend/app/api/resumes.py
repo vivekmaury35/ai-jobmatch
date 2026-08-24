@@ -42,45 +42,50 @@ async def upload_resume(
         raw_text = parser_service.extract_text_from_pdf(file_bytes)
     except ScannedPDFError as e:
         raise HTTPException(status_code=422, detail={"code": "SCANNED_PDF_UNSUPPORTED", "message": str(e)})
-    except Exception:
-        raise HTTPException(status_code=502, detail={"code": "EXTRACTION_FAILED", "message": "Failed to parse the PDF file."})
+    except Exception as e:
+        raise HTTPException(status_code=502, detail={"code": "EXTRACTION_FAILED", "message": f"Failed to parse the PDF file: {str(e)}"})
 
     # 2. Direct AI Service structured extraction
-    # We bypass heuristic chunking and let the AI brain read the whole raw document
     ai_service = AIService()
     try:
         parsed_resume_data: ResumeParsedData = await ai_service.extract_structured(
-            text=raw_text, # Just feed raw text directly
+            text=raw_text,
             schema=ResumeParsedData,
             extraction_type="Resume"
         )
     except AIExtractionError as e:
-         raise HTTPException(status_code=502, detail={"code": "EXTRACTION_FAILED", "message": str(e)})
+        raise HTTPException(status_code=502, detail={"code": "EXTRACTION_FAILED", "message": str(e)})
+    except Exception as e:
+        raise HTTPException(status_code=500, detail={"code": "AI_ERROR", "message": f"AI extraction failed: {str(e)}"})
 
     # 3. Persistence
-    content_hash = parser_service.get_content_hash(raw_text)
+    try:
+        content_hash = parser_service.get_content_hash(raw_text)
 
-    # Trust X-Session-ID header first (fixes localhost CORS dropping cookies)
-    session_id_str = request.headers.get("X-Session-ID") or request.cookies.get("session_id")
-    session_id = UUID(session_id_str) if session_id_str else None
+        session_id_str = request.headers.get("X-Session-ID") or request.cookies.get("session_id")
+        session_id = None
+        if session_id_str and session_id_str.strip():
+            try:
+                session_id = UUID(session_id_str.strip())
+            except ValueError:
+                session_id = None
 
-    session_repo = SessionRepository(db)
-    current_session = session_repo.get_or_create(session_id)
-    resume_repo = ResumeRepository(db)
+        session_repo = SessionRepository(db)
+        current_session = session_repo.get_or_create(session_id)
+        resume_repo = ResumeRepository(db)
 
-    resume = resume_repo.create(
-        session_id=current_session.id,
-        filename=file.filename,
-        raw_text=raw_text,
-        content_hash=content_hash,
-        parsed_data=parsed_resume_data.model_dump(),
-    )
+        resume = resume_repo.create(
+            session_id=current_session.id,
+            filename=file.filename or "resume.pdf",
+            raw_text=raw_text,
+            content_hash=content_hash,
+            parsed_data=parsed_resume_data.model_dump(),
+        )
 
-    normalizer = SkillNormalizerService(db)
-    normalizer.populate_resume_skills(resume_id=resume.id, raw_skills=parsed_resume_data.skills)
+        normalizer = SkillNormalizerService(db)
+        normalizer.populate_resume_skills(resume_id=resume.id, raw_skills=parsed_resume_data.skills)
 
-    # Return session ID via custom response header so frontend can store it
-    response.headers["X-Session-ID"] = str(current_session.id)
-    response.set_cookie(key="session_id", value=str(current_session.id), httponly=True, samesite="lax", max_age=30*24*60*60)
-
-    return resume
+        response.headers["X-Session-ID"] = str(current_session.id)
+        return resume
+    except Exception as e:
+        raise HTTPException(status_code=500, detail={"code": "DATABASE_ERROR", "message": f"Database operation failed: {str(e)}"})
