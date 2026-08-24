@@ -12,6 +12,7 @@ sentence-transformers
 rapidfuzz
 openai
 google-generativeai
+google-genai
 tenacity
 scikit-learn
 numpy
