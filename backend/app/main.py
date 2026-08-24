@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from uuid import UUID, uuid4
 
 from app.api.resumes import router as resumes_router
@@ -14,29 +15,17 @@ app = FastAPI(
 
 
 # ==========================================================
-# FAIL-SAFE CORS MIDDLEWARE
+# CORS MIDDLEWARE (Must be added last so it wraps all requests)
 # ==========================================================
 
-@app.middleware("http")
-async def cors_middleware(request: Request, call_next):
-    if request.method == "OPTIONS":
-        response = Response(status_code=200)
-    else:
-        response = await call_next(request)
-
-    origin = request.headers.get("origin")
-    if origin:
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
-        response.headers["Access-Control-Allow-Headers"] = "*"
-        response.headers["Access-Control-Expose-Headers"] = "X-Session-ID"
-    else:
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Methods"] = "*"
-        response.headers["Access-Control-Allow-Headers"] = "*"
-
-    return response
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    expose_headers=["X-Session-ID"],
+)
 
 
 # ==========================================================
@@ -49,49 +38,33 @@ async def session_middleware(
     call_next,
 ):
     if request.method == "OPTIONS":
-        return await call_next(request)
-
-    session_id = request.cookies.get("session_id")
-    is_https = request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https"
-    samesite_val = "none" if is_https else "lax"
-    secure_val = is_https
-
-    # No session cookie -> create one
-    if not session_id:
-        session_id = str(uuid4())
-
-        response = await call_next(request)
-
-        response.set_cookie(
-            key="session_id",
-            value=session_id,
-            httponly=True,
-            samesite=samesite_val,
-            secure=secure_val,
+        return Response(
+            status_code=200,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "*",
+                "Access-Control-Allow-Headers": "*",
+            }
         )
 
+    session_id = request.cookies.get("session_id") or request.headers.get("x-session-id")
+
+    # No session ID -> create one
+    if not session_id:
+        session_id = str(uuid4())
+        response = await call_next(request)
+        response.headers["X-Session-ID"] = session_id
         return response
 
     # Validate existing session UUID
     try:
         UUID(session_id)
-
     except ValueError:
         session_id = str(uuid4())
 
-        response = await call_next(request)
-
-        response.set_cookie(
-            key="session_id",
-            value=session_id,
-            httponly=True,
-            samesite=samesite_val,
-            secure=secure_val,
-        )
-
-        return response
-
-    return await call_next(request)
+    response = await call_next(request)
+    response.headers["X-Session-ID"] = session_id
+    return response
 
 
 # ==========================================================
