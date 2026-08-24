@@ -58,7 +58,7 @@ class AIService:
 
     async def _call_llm(self, prompt: str):
         if self.provider in ["openrouter", "groq"]:
-            @retry(retry=retry_if_exception_type(Exception), stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+            @retry(retry=retry_if_exception_type(Exception), stop=stop_after_attempt(3), wait=wait_exponential(multiplier=2, min=3, max=10))
             async def _call():
                 response = await self.client.chat.completions.create(
                     model=self.model,
@@ -68,11 +68,12 @@ class AIService:
                 return response.choices[0].message.content
             return await _call()
         else:
-            @retry(retry=retry_if_exception_type(Exception), stop=stop_after_attempt(4), wait=wait_exponential(multiplier=2, min=2, max=15))
+            @retry(retry=retry_if_exception_type(Exception), stop=stop_after_attempt(5), wait=wait_exponential(multiplier=3, min=6, max=25))
             async def _call():
                 return await self.client.aio.models.generate_content(model=self.model, contents=prompt)
             response = await _call()
             return response.text.strip()
+
 
     async def extract_structured(self, text: str, schema: Type[T], extraction_type: str) -> T:
         schema_definition = schema.model_json_schema()
