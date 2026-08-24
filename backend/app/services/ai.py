@@ -30,7 +30,14 @@ class AIExtractionError(Exception):
 
 class AIService:
     def __init__(self):
-        self.provider = settings.AI_PROVIDER
+        provider = (settings.AI_PROVIDER or "gemini").lower()
+        if provider == "groq" and not settings.GROQ_API_KEY:
+            provider = "gemini"
+        if provider == "openrouter" and not settings.OPENROUTER_API_KEY:
+            provider = "gemini"
+
+        self.provider = provider
+
         if self.provider == "openrouter":
             self.client = AsyncOpenAI(base_url="https://openrouter.ai/api/v1", api_key=settings.OPENROUTER_API_KEY)
             self.model = settings.OPENROUTER_MODEL
@@ -38,8 +45,10 @@ class AIService:
             self.client = AsyncOpenAI(base_url="https://api.groq.com/openai/v1", api_key=settings.GROQ_API_KEY)
             self.model = settings.GROQ_MODEL
         else:
-            self.client = genai.Client(api_key=settings.GEMINI_API_KEY)
+            gemini_key = settings.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY", "")
+            self.client = genai.Client(api_key=gemini_key)
             self.model = "gemini-3.6-flash"
+
 
     async def _call_llm(self, prompt: str):
         if self.provider in ["openrouter", "groq"]:
