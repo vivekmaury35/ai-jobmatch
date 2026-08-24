@@ -36,24 +36,29 @@ class AIExtractionError(Exception):
 
 class AIService:
     def __init__(self):
-        provider = (settings.AI_PROVIDER or "gemini").lower()
-        if provider == "groq" and not settings.GROQ_API_KEY:
-            provider = "gemini"
-        if provider == "openrouter" and not settings.OPENROUTER_API_KEY:
-            provider = "gemini"
+        openrouter_key = settings.OPENROUTER_API_KEY or os.getenv("OPENROUTER_API_KEY", "")
+        gemini_key = settings.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY", "")
+        groq_key = settings.GROQ_API_KEY or os.getenv("GROQ_API_KEY", "")
+
+        provider = (settings.AI_PROVIDER or "openrouter").lower()
+
+        if provider == "openrouter" and not openrouter_key:
+            provider = "gemini" if gemini_key else "openrouter"
+        if provider == "groq" and not groq_key:
+            provider = "gemini" if gemini_key else "openrouter"
 
         self.provider = provider
 
         if self.provider == "openrouter":
-            self.client = AsyncOpenAI(base_url="https://openrouter.ai/api/v1", api_key=settings.OPENROUTER_API_KEY)
-            self.model = settings.OPENROUTER_MODEL
+            self.client = AsyncOpenAI(base_url="https://openrouter.ai/api/v1", api_key=openrouter_key)
+            self.model = settings.OPENROUTER_MODEL or "openai/gpt-4o-mini"
         elif self.provider == "groq":
-            self.client = AsyncOpenAI(base_url="https://api.groq.com/openai/v1", api_key=settings.GROQ_API_KEY)
-            self.model = settings.GROQ_MODEL
+            self.client = AsyncOpenAI(base_url="https://api.groq.com/openai/v1", api_key=groq_key)
+            self.model = settings.GROQ_MODEL or "llama-3.3-70b-versatile"
         else:
-            gemini_key = settings.GEMINI_API_KEY or os.getenv("GEMINI_API_KEY", "")
             self.client = genai.Client(api_key=gemini_key)
             self.model = "gemini-3.6-flash"
+
 
 
     async def _call_llm(self, prompt: str):
