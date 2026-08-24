@@ -14,6 +14,22 @@ app = FastAPI(
 
 
 # ==========================================================
+# STARTUP EVENT: AUTO-CREATE DATABASE TABLES
+# ==========================================================
+
+@app.on_event("startup")
+def on_startup():
+    try:
+        import app.models
+        from app.core.database import Base, engine
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        import logging
+        logging.getLogger("uvicorn").error(f"Startup DB table creation error: {e}")
+
+
+
+# ==========================================================
 # DYNAMIC CORS MIDDLEWARE
 # ==========================================================
 
