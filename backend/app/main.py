@@ -1,5 +1,4 @@
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
+from fastapi import FastAPI, Request, Response
 from uuid import UUID, uuid4
 
 from app.api.resumes import router as resumes_router
@@ -12,6 +11,32 @@ app = FastAPI(
     description="Backend for AI JobMatch",
     version="1.0.0",
 )
+
+
+# ==========================================================
+# FAIL-SAFE CORS MIDDLEWARE
+# ==========================================================
+
+@app.middleware("http")
+async def cors_middleware(request: Request, call_next):
+    if request.method == "OPTIONS":
+        response = Response(status_code=200)
+    else:
+        response = await call_next(request)
+
+    origin = request.headers.get("origin")
+    if origin:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+        response.headers["Access-Control-Expose-Headers"] = "X-Session-ID"
+    else:
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Methods"] = "*"
+        response.headers["Access-Control-Allow-Headers"] = "*"
+
+    return response
 
 
 # ==========================================================
@@ -67,24 +92,6 @@ async def session_middleware(
         return response
 
     return await call_next(request)
-
-
-# ==========================================================
-# CORS (Must be added last so it executes first as outer layer)
-# ==========================================================
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[],
-    allow_origin_regex=r".*",
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["X-Session-ID"],
-)
-
-
-
 
 
 # ==========================================================
