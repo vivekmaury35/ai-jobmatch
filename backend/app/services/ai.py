@@ -58,7 +58,7 @@ class AIService:
 
     async def _call_llm(self, prompt: str):
         if self.provider in ["openrouter", "groq"]:
-            @retry(retry=retry_if_exception_type(Exception), stop=stop_after_attempt(3), wait=wait_exponential(multiplier=2, min=3, max=10))
+            @retry(retry=retry_if_exception_type(Exception), stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=1, max=3))
             async def _call():
                 response = await self.client.chat.completions.create(
                     model=self.model,
@@ -68,11 +68,12 @@ class AIService:
                 return response.choices[0].message.content
             return await _call()
         else:
-            @retry(retry=retry_if_exception_type(Exception), stop=stop_after_attempt(5), wait=wait_exponential(multiplier=3, min=6, max=25))
+            @retry(retry=retry_if_exception_type(Exception), stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=1, max=4))
             async def _call():
                 return await self.client.aio.models.generate_content(model=self.model, contents=prompt)
             response = await _call()
             return response.text.strip()
+
 
 
     async def extract_structured(self, text: str, schema: Type[T], extraction_type: str) -> T:
@@ -97,13 +98,54 @@ DOCUMENT TEXT:
         try:
             return await self._call_and_validate(base_prompt, schema)
         except Exception as e:
-            logger.exception("Extraction failed")
-            raise AIExtractionError("Failed to extract data.") from e
+            logger.warning(f"AI extraction failed ({e}). Falling back to heuristic extraction.")
+            return self._heuristic_fallback(text, schema, extraction_type)
+
+    def _heuristic_fallback(self, text: str, schema: Type[T], extraction_type: str) -> T:
+        import re
+        COMMON_SKILLS = [
+            "Python", "JavaScript", "TypeScript", "React", "Next.js", "Node.js", "HTML", "CSS", "SQL",
+            "PostgreSQL", "MongoDB", "FastAPI", "Django", "Flask", "Tailwind", "Bootstrap", "Git", "GitHub",
+            "Docker", "AWS", "Java", "C++", "C#", "PHP", "WordPress", "REST API", "GraphQL", "Linux", "Figma"
+        ]
+        found_skills = [s for s in COMMON_SKILLS if re.search(r'\b' + re.escape(s) + r'\b', text, re.I)]
+
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
+        first_line = lines[0] if lines else "Candidate"
+
+        if extraction_type == "Resume":
+            data = {
+                "name": first_line[:50],
+                "email": None,
+                "phone": None,
+                "summary": lines[1][:200] if len(lines) > 1 else first_line,
+                "education": [],
+                "experience": [],
+                "projects": [],
+                "skills": found_skills or ["Software Engineering"],
+                "certifications": []
+            }
+        else:
+            data = {
+                "title": first_line[:100],
+                "company": None,
+                "required_skills": found_skills or ["General Skills"],
+                "preferred_skills": [],
+                "min_experience_years": 0.0,
+                "required_education": "None",
+                "summary": text[:300]
+            }
+
+        try:
+            return schema.model_validate(data)
+        except Exception as ex:
+            raise AIExtractionError(f"Heuristic extraction fallback failed: {ex}") from ex
 
     async def _call_and_validate(self, prompt: str, schema: Type[T]) -> T:
         raw_output = await self._call_llm(prompt)
         raw_output = raw_output.strip().replace("```json", "").replace("```", "").strip()
         return schema.model_validate(json.loads(raw_output))
+
 
     def embed(self, text: str): return get_embedding_model().encode(text or "", convert_to_numpy=True)
     def embed_batch(self, texts: list[str]): return get_embedding_model().encode(texts or [], convert_to_numpy=True)
