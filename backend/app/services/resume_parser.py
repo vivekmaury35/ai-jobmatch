@@ -36,11 +36,12 @@ class ResumeParserService:
         except Exception as e:
             raise ResumeParserError(f"Failed to read PDF: {str(e)}")
 
-        # FR-4: Below 100 characters usually means it's an image/scanned PDF without OCR
-        if len(text.strip()) < 100:
+        # Below 20 characters usually means it's an image/scanned PDF without OCR
+        if len(text.strip()) < 20:
             raise ScannedPDFError(
                 "This resume appears to be a scanned image. Please upload a text-based PDF."
             )
+
 
         return text
 
