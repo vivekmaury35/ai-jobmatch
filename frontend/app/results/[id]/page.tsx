@@ -4,6 +4,7 @@ import { SubScoreCard } from '../../components/ui/SubScoreCard';
 import { Card } from '../../components/ui/Card';
 import { AnalyzeResponse } from '../../types';
 import { CheckCircle2, AlertCircle, TrendingUp, Target } from 'lucide-react';
+import { getApiUrl } from '../../lib/utils';
 
 export default function Results({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -11,8 +12,9 @@ export default function Results({ params }: { params: Promise<{ id: string }> })
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+    const apiUrl = getApiUrl();
     fetch(`${apiUrl}/analyze/${id}`, { credentials: 'include' })
+
       .then(res => {
          if (!res.ok) throw new Error("Load failed");
          return res.json();

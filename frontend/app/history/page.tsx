@@ -4,13 +4,14 @@ import Link from 'next/link';
 import { Trash2 } from 'lucide-react';
 import { AnalyzeResponse } from '../types';
 import { Button } from '../components/ui/Button';
+import { getApiUrl } from '../lib/utils';
 
 export default function History() {
   const [analyses, setAnalyses] = useState<AnalyzeResponse[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+    const apiUrl = getApiUrl();
     const storedSession = localStorage.getItem('session_id') || "";
 
     fetch(`${apiUrl}/analyze`, {
@@ -24,10 +25,11 @@ export default function History() {
 
   const deleteAnalysis = async (e: React.MouseEvent, id: string) => {
     e.preventDefault();
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+    const apiUrl = getApiUrl();
     await fetch(`${apiUrl}/analyze/${id}`, { method: 'DELETE', credentials: 'include' });
     setAnalyses(prev => prev ? prev.filter(a => a.id !== id) : null);
   };
+
 
   if (error) return <main className="p-8 text-red-500 font-semibold">{error}</main>;
   if (!analyses) return <main className="p-8 text-zinc-400">Loading analysis history...</main>;

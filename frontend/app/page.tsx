@@ -3,7 +3,9 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from './components/ui/Button';
 import { Card } from './components/ui/Card';
+import { getApiUrl } from './lib/utils';
 import { FileUp, X, AlertCircle, Loader2, CheckCircle2 } from 'lucide-react';
+
 
 const STEPS = [
   { id: 'resumes', label: 'Processing Resume...' },
@@ -50,8 +52,9 @@ export default function Home() {
     if (jd.split(' ').filter(Boolean).length < 50) { setError("Please paste the full job description (at least 50 words)."); return; }
 
     setLoading(true); setError(null);
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+    const apiUrl = getApiUrl();
     const storedSession = localStorage.getItem('session_id') || "";
+
 
     try {
       setCurrentStep(0);
