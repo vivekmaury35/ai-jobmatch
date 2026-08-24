@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request, Response
 from sqlalchemy.orm import Session
 from uuid import UUID
 
@@ -14,92 +14,60 @@ router = APIRouter(prefix="/resumes", tags=["resumes"])
 @router.post("", response_model=ResumeResponse, status_code=201)
 async def upload_resume(
     request: Request,
+    response: Response,
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
 ):
     """
-    FR-1, FR-2, FR-4: Uploads a PDF resume, parses its text, and saves it.
+    FR-1, FR-2, FR-4: Uploads a PDF resume, extracts raw text, and delegates full structuring directly to AI.
     """
-
-    # 1. Validate file type and size
     file_bytes = await file.read()
 
     if len(file_bytes) > 5 * 1024 * 1024:
         raise HTTPException(
             status_code=400,
-            detail={
-                "code": "FILE_TOO_LARGE",
-                "message": "Resume file cannot exceed 5MB.",
-            },
+            detail={"code": "FILE_TOO_LARGE", "message": "Resume file cannot exceed 5MB."}
         )
 
     filename = (file.filename or "").lower()
-
     if not filename.endswith(".pdf") or not file_bytes.startswith(b"%PDF-"):
         raise HTTPException(
             status_code=400,
-            detail={
-                "code": "INVALID_FILE_TYPE",
-                "message": "Only PDF files are supported.",
-            },
+            detail={"code": "INVALID_FILE_TYPE", "message": "Only PDF files are supported."}
         )
 
-    # 2. Extract document text via pure Python heuristics
+    # 1. Extract raw text from PDF
     parser_service = ResumeParserService()
-
     try:
         raw_text = parser_service.extract_text_from_pdf(file_bytes)
-
     except ScannedPDFError as e:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "code": "SCANNED_PDF_UNSUPPORTED",
-                "message": str(e),
-            },
-        )
-
+        raise HTTPException(status_code=422, detail={"code": "SCANNED_PDF_UNSUPPORTED", "message": str(e)})
     except Exception:
-        raise HTTPException(
-            status_code=502,
-            detail={
-                "code": "EXTRACTION_FAILED",
-                "message": "Failed to parse the PDF file.",
-            },
-        )
+        raise HTTPException(status_code=502, detail={"code": "EXTRACTION_FAILED", "message": "Failed to parse the PDF file."})
 
-    sectioned_text = parser_service.heuristically_chunk_sections(raw_text)
-
-    # 3. AI Service structured extraction via Gemini API
+    # 2. Direct AI Service structured extraction
+    # We bypass heuristic chunking and let the AI brain read the whole raw document
     ai_service = AIService()
     try:
-        # We pass the heuristically chunked text as a string to the AI model
-        text_for_ai = "\n\n".join([f"---{k.upper()}---\n{v}" for k, v in sectioned_text.items()])
-
         parsed_resume_data: ResumeParsedData = await ai_service.extract_structured(
-            text=text_for_ai,
+            text=raw_text, # Just feed raw text directly
             schema=ResumeParsedData,
             extraction_type="Resume"
         )
     except AIExtractionError as e:
-         raise HTTPException(status_code=502, detail={
-            "code": "EXTRACTION_FAILED",
-            "message": str(e)
-        })
+         raise HTTPException(status_code=502, detail={"code": "EXTRACTION_FAILED", "message": str(e)})
 
-    # 4. Persistence
+    # 3. Persistence
     content_hash = parser_service.get_content_hash(raw_text)
 
-    # Automatically derive or create a session
-    session_id_str = request.cookies.get("session_id")
+    # Trust X-Session-ID header first (fixes localhost CORS dropping cookies)
+    session_id_str = request.headers.get("X-Session-ID") or request.cookies.get("session_id")
     session_id = UUID(session_id_str) if session_id_str else None
 
     session_repo = SessionRepository(db)
     current_session = session_repo.get_or_create(session_id)
-
     resume_repo = ResumeRepository(db)
 
-    # Update logic to save the fully structured Pydantic dump
     resume = resume_repo.create(
         session_id=current_session.id,
         filename=file.filename,
@@ -108,11 +76,11 @@ async def upload_resume(
         parsed_data=parsed_resume_data.model_dump(),
     )
 
-    # FR-12: Normalize and populate resume_skills
     normalizer = SkillNormalizerService(db)
-    normalizer.populate_resume_skills(
-        resume_id=resume.id,
-        raw_skills=parsed_resume_data.skills
-    )
+    normalizer.populate_resume_skills(resume_id=resume.id, raw_skills=parsed_resume_data.skills)
+
+    # Return session ID via custom response header so frontend can store it
+    response.headers["X-Session-ID"] = str(current_session.id)
+    response.set_cookie(key="session_id", value=str(current_session.id), httponly=True, samesite="lax", max_age=30*24*60*60)
 
     return resume

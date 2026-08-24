@@ -11,7 +11,9 @@ class Education(BaseModel):
 class Experience(BaseModel):
     title: Optional[str] = None
     company: Optional[str] = None
-    duration: Optional[str] = None
+    duration: Optional[str] = None  # kept for backward compatibility
+    start_date: Optional[str] = None  # Format: YYYY-MM
+    end_date: Optional[str] = None    # Format: YYYY-MM or "Present"
     description: Optional[str] = None
     type: Optional[str] = None  # professional|internship|freelance|academic
 

@@ -1,5 +1,5 @@
 import io
-import fitz # PyMuPDF
+import pymupdf as fitz # PyMuPDF
 import re
 from typing import Dict, List, Tuple
 import hashlib

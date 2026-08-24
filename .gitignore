@@ -1,15 +1,42 @@
-# Environment / secrets
+# Environment & Secrets
 .env
+.env.*
 *.env
 
 # Python
 __pycache__/
 *.py[cod]
+*$py.class
+venv/
 backend/venv/
+.pytest_cache/
+*.log
+backend/*.log
+frontend/*.log
+backend/nul
+backend/test_out.txt
+backend/test_output.json
 
-# Resume / uploaded files
+# Node & Next.js
+node_modules/
+frontend/node_modules/
+.next/
+frontend/.next/
+out/
+build/
+*.tsbuildinfo
+next-env.d.ts
+
+# Resumes / PDFs / Media
 *.pdf
+
+# IDEs & System files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
 
 # Postman local files
 .postman/
 postman/
+

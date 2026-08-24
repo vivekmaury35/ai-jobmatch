@@ -7,3 +7,11 @@ psycopg2-binary
 alembic
 httpx
 python-dotenv
+pymupdf
+sentence-transformers
+rapidfuzz
+openai
+google-generativeai
+tenacity
+scikit-learn
+numpy

@@ -4,8 +4,8 @@ from datetime import datetime
 
 class JobParsedData(BaseModel):
     title: Optional[str] = None
-    required_skills: List[str] = []
-    preferred_skills: List[str] = []
+    required_skills: List[str] = [] # e.g. ["Python", "Docker"] - atomic terms only
+    preferred_skills: List[str] = [] # e.g. ["Git", "SQL"] - atomic terms only
     responsibilities: List[str] = []
     experience_years_required: Optional[int] = None
     education_requirement: Optional[str] = None

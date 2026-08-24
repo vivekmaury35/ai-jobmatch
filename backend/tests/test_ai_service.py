@@ -19,7 +19,7 @@ async def test_generate_explanation_success(ai_service):
 
     with patch.object(ai_service.client.aio.models, 'generate_content', return_value=mock_response):
         context = {
-            "overall_score": 50.0, "skill_score": 50.0, "semantic_score": 50.0,
+            "overall_score": 50.0, "skill_score": 50.0,
             "experience_score": 50.0, "education_score": 50.0, "project_evidence_score": 50.0,
             "matched_skills": [], "missing_skills": [], "related_skills": []
         }
@@ -34,7 +34,7 @@ async def test_generate_explanation_retry_transient_error(ai_service):
 
     with patch.object(ai_service.client.aio.models, 'generate_content', side_effect=[ServerError(503, {}, None), ServerError(503, {}, None), mock_response]):
         context = {
-            "overall_score": 50.0, "skill_score": 50.0, "semantic_score": 50.0,
+            "overall_score": 50.0, "skill_score": 50.0,
             "experience_score": 50.0, "education_score": 50.0, "project_evidence_score": 50.0,
             "matched_skills": [], "missing_skills": [], "related_skills": []
         }
@@ -48,7 +48,7 @@ async def test_generate_explanation_malformed_json(ai_service):
 
     with patch.object(ai_service.client.aio.models, 'generate_content', return_value=mock_response):
         context = {
-            "overall_score": 50.0, "skill_score": 50.0, "semantic_score": 50.0,
+            "overall_score": 50.0, "skill_score": 50.0,
             "experience_score": 50.0, "education_score": 50.0, "project_evidence_score": 50.0,
             "matched_skills": [], "missing_skills": [], "related_skills": []
         }

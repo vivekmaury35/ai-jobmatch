@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends, Request, Response
 from sqlalchemy.orm import Session
 from uuid import UUID
 
@@ -12,7 +12,7 @@ import hashlib
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 @router.post("", response_model=JobResponse, status_code=201)
-async def analyze_job(request: Request, job_input: JobCreateRequest, db: Session = Depends(get_db)):
+async def analyze_job(request: Request, response: Response, job_input: JobCreateRequest, db: Session = Depends(get_db)):
     """
     FR-8, FR-9, FR-10: Accepts JD text, validates length, extracts structured data via LLM.
     """
@@ -44,11 +44,15 @@ async def analyze_job(request: Request, job_input: JobCreateRequest, db: Session
     # Prepare for persistence
     content_hash = hashlib.sha256(raw_text.encode('utf-8')).hexdigest()
 
-    session_id_str = request.cookies.get("session_id")
+    session_id_str = request.headers.get("X-Session-ID") or request.cookies.get("session_id")
     session_id = UUID(session_id_str) if session_id_str else None
 
     session_repo = SessionRepository(db)
     current_session = session_repo.get_or_create(session_id)
+
+    # Keep the frontend's session in sync, same as the resume upload endpoint.
+    response.headers["X-Session-ID"] = str(current_session.id)
+    response.set_cookie(key="session_id", value=str(current_session.id), httponly=True, samesite="lax", max_age=30*24*60*60)
 
     job_repo = JobRepository(db)
     job = job_repo.create(

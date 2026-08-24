@@ -15,21 +15,6 @@ app = FastAPI(
 
 
 # ==========================================================
-# CORS
-# ==========================================================
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-# ==========================================================
 # SESSION MIDDLEWARE
 # ==========================================================
 
@@ -38,6 +23,9 @@ async def session_middleware(
     request: Request,
     call_next,
 ):
+    if request.method == "OPTIONS":
+        return await call_next(request)
+
     session_id = request.cookies.get("session_id")
 
     # No session cookie -> create one
@@ -76,6 +64,31 @@ async def session_middleware(
         return response
 
     return await call_next(request)
+
+
+# ==========================================================
+# CORS (Must be added last so it executes first as outer layer)
+# ==========================================================
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+    ],
+    allow_origin_regex=r"http://(localhost|127\.0\.0\.1)(:\d+)?",
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+    # Custom response headers are hidden from JS by default under CORS;
+    # expose X-Session-ID so the frontend can persist the session across
+    # environments where the session cookie isn't reliably round-tripped.
+    expose_headers=["X-Session-ID"],
+)
 
 
 # ==========================================================

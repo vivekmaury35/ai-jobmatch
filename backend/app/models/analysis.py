@@ -13,12 +13,36 @@ class Analysis(Base):
     session_id = Column(UUID(as_uuid=True), ForeignKey("sessions.id"), index=True, nullable=False)
     resume_id = Column(UUID(as_uuid=True), ForeignKey("resumes.id"), nullable=False)
     job_id = Column(UUID(as_uuid=True), ForeignKey("jobs.id"), nullable=False)
+
+    scoring_version = Column(String(50), nullable=True) # E.g., 'v2.0.0' for cache invalidation
+
+    confidence_tier = Column(String(50), nullable=True)
+    tier_label = Column(String(100), nullable=True)
+    tier_advice = Column(String, nullable=True)
+
+    required_skills_matched = Column(Integer, default=0)
+    required_skills_total = Column(Integer, default=0)
+    preferred_skills_matched = Column(Integer, default=0)
+    preferred_skills_total = Column(Integer, default=0)
+
+    experience_years_candidate = Column(Float, default=0.0)
+    experience_years_required = Column(Float, default=0.0)
+    experience_gap_years = Column(Float, default=0.0)
+
+    education_gate = Column(String(50), nullable=True)
+    education_requirement = Column(String, nullable=True)
+
     overall_score = Column(Float, nullable=True)
     skill_score = Column(Float, nullable=True)
-    semantic_score = Column(Float, nullable=True)
     experience_score = Column(Float, nullable=True)
     education_score = Column(Float, nullable=True)
     project_evidence_score = Column(Float, nullable=True)
+    soft_skills_score = Column(Float, nullable=True)
+    ai_tools_score = Column(Float, nullable=True)
+    responsibilities_score = Column(Float, nullable=True)
+    location_score = Column(Float, nullable=True)
+    certification_score = Column(Float, nullable=True)
+
     matched_skills = Column(JSONB, nullable=True)
     missing_skills = Column(JSONB, nullable=True)
     related_skills = Column(JSONB, nullable=True) # Adding this so it can be correctly retrieved from cache
